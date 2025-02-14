@@ -1,8 +1,10 @@
 import os
 import requests
 from github import Github
-from scripts.calculate_weeks import get_previous_and_current_week
 import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from scripts.calculate_weeks import get_previous_and_current_week
+
 
 # GitHub 오가나이제이션 이름
 ORG_NAME = "SSAFY-while-true"
