@@ -1,7 +1,6 @@
 import os
 import requests
 from github import Github
-from scripts.calculate_weeks import get_previous_and_current_week
 
 # 필요하다면 수정
 ORG_NAME = "SSAFY-while-true"
