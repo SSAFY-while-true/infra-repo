@@ -66,6 +66,8 @@ def main():
         # 예: .github 레포, demo-repo 등 스킵할 수도 있음
         if repo.name.startswith("."):
             continue
+        elif repo.name in ["infra-repo", ".github"]:
+            continue
 
         # 기본값: X (미제출)
         status = "X"
