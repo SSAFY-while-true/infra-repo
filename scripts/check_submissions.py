@@ -1,12 +1,12 @@
 import os
 import requests
-from github import Github
 import sys
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from scripts.calculate_weeks import get_previous_and_current_week
 
+from github import Github
+from calculate_weeks import get_previous_and_current_week
 
-# GitHub 오가나이제이션 이름
 ORG_NAME = "SSAFY-while-true"
 
 def main():
@@ -17,37 +17,47 @@ def main():
         print("❌ Error: Missing GITHUB_TOKEN or DISCORD_WEBHOOK_URL")
         exit(1)
 
-    # 지난주, 이번주 주차 폴더 구하기
+    # 지난주, 이번주 주차 폴더 계산
     prev_week, curr_week = get_previous_and_current_week()
 
-    # GitHub API (PyGithub)
+    # PyGithub로 오가나이제이션 객체 가져오기
     gh = Github(GITHUB_TOKEN)
     org = gh.get_organization(ORG_NAME)
 
-    # 보고용 문자열
+    # 보고용 문자열 리스트
     report_lines = []
-    report_lines.append(f"## 📝 Weekly Submissions Check")
+    # 헤더 메시지
+    report_lines.append("## 📝 Weekly Submissions Check")
     report_lines.append(f"- 지난 주 폴더: `{prev_week}`, 이번 주 폴더: `{curr_week}`\n")
 
+    # 모든 리포지토리 순회
     repos = org.get_repos()
     for repo in repos:
-        # .github 등 숨김/특수 리포지토리는 제외하고 싶으면 조건 추가
+        # 숨김 리포(.github 등) 제외
         if repo.name.startswith("."):
             continue
+        # infra 리포제거
+        if "infra" in repo.name.lower():
+            continue
 
-        # 지난 주 폴더 검사
+        # 지난주와 이번주 폴더 체크
         prev_status = check_folder_and_files(repo, prev_week)
-
-        # 이번 주 폴더 검사
         curr_status = check_folder_and_files(repo, curr_week)
 
-        # 예: "**ppower-dev**: 지난주 X / 이번주 O" 식의 줄을 추가
-        report_lines.append(f"**{repo.name}**: 지난주 {prev_status} / 이번주 {curr_status}")
+        report_lines.append(
+            f"**{repo.name}**: 지난주 {prev_status} / 이번주 {curr_status}"
+        )
 
+    # 본문 메시지
     final_message = "\n".join(report_lines)
+    final_message += "\n\n이번 주도 모두 수고 많으셨습니다! 🔥\n"
+    final_message += "❌ **X**로 표시된 분들은 내일 바나프레소 커피… ☕ 약속이죠? 😆"
 
-    # 디스코드로 메시지 전송
-    response = requests.post(DISCORD_WEBHOOK_URL, json={"content": final_message})
+    # 디스코드 웹훅 전송
+    response = requests.post(
+        DISCORD_WEBHOOK_URL,
+        json={"content": final_message}
+    )
     if response.status_code == 204:
         print("✅ Discord message sent successfully!")
     else:
@@ -56,35 +66,31 @@ def main():
 
 def check_folder_and_files(repo, folder_name):
     """
-    - 폴더가 없으면 'X'
-    - 폴더가 있어도 코드(파일)가 없으면 'X'
-    - 하나라도 파일(코드)이 있으면 'O'
-    
-    원한다면 파일 확장자(.py, .cpp 등) 필터링도 가능.
+    폴더 + 파일 유무 체크
+    - 폴더가 없으면 X
+    - 폴더가 있어도 제출 파일(.py, .cpp, .java 등)이 없으면 X
+    - 하나라도 제출 파일이 있으면 O
     """
     try:
         contents = repo.get_contents(folder_name)
     except:
-        # 폴더 자체가 없으면 미제출
+        # 폴더 자체 없음
         return "X"
 
-    # 폴더가 존재하긴 하므로, 내부 파일이 있는지 체크
+    # 폴더가 존재하므로 내부 파일 체크
     code_file_found = False
-
     for item in contents:
         if item.type == "file":
-            # 필요하다면 확장자 체크 (예: .py, .cpp 등)
+            # 확장자 필터 (예: .py, .cpp, .java)
             if item.name.lower().endswith((".py", ".cpp", ".java")):
                 code_file_found = True
                 break
-
-            # 또는 그냥 README.md만 빼고, 나머지는 전부 제출 파일로 간주
+            # .md만 있는 경우 제출로 보기 싫다면 처리
             if not item.name.lower().endswith(".md"):
                 code_file_found = True
                 break
 
-        # 만약 폴더 안에 또 폴더가 있을 수 있다면?
-        # (item.type == "dir") -> 재귀적으로 파일 검색하는 로직 추가도 가능.
+        # 하위 폴더가 또 있을 수 있다면 재귀적으로 검색 가능
 
     return "O" if code_file_found else "X"
 

@@ -1,18 +1,15 @@
-name: Check Algorithm Study & Send Discord Alerts
+name: Weekly Study
 
 on:
   schedule:
-    # 매주 일요일 0시 (UTC 15시 → KST 0시)에 문제 검사
-    - cron: '0 15 * * 0'
-
-    # 테스트용: 2월 14일 오후 4시 50분(KST) 실행
-    # - cron: '50 7 * * *'
-    # 매주 토요일 22시 (UTC 13시 → KST 22시)에 리마인드 알림
+    # 매주 토요일 22시 (UTC 13시 => KST 22시)
     - cron: '0 13 * * 6'
+    # 매주 일요일 0시 (UTC 15시 => KST 0시)
+    - cron: '0 15 * * 0'
   workflow_dispatch:
 
 jobs:
-  check-submissions:
+  weekly-study:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,24 +24,22 @@ jobs:
       - name: Install dependencies
         run: pip install requests PyGithub
 
-      # 1) 매주 일요일에만 주차 폴더 검사 & 보고
-      - name: Run submission check script
-        if: >
-          github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'schedule' && github.event.schedule == '0 15 * * 0')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python scripts/check_submissions.py
-
-      # 2) 매주 토요일에만 리마인드 메시지 전송
+      # 토요일 22시 (리마인더)
       - name: Send Reminder
         if: >
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'schedule' && github.event.schedule == '0 13 * * 6')
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          curl -H "Content-Type: application/json" \
-            -d "{\"content\": \"🔔 **Reminder!** 🔔\n\n이번 주 문제 풀이 & 폴더 업로드 잊지 마세요! 💪\"}" \
-            $DISCORD_WEBHOOK_URL
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/reminder.py
+
+      # 일요일 0시 (체킹)
+      - name: Check Submissions
+        if: >
+          github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'schedule' && github.event.schedule == '0 15 * * 0')
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/check_submissions.py
