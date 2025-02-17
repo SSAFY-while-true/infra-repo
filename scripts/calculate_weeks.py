@@ -16,6 +16,15 @@ def get_previous_and_current_week():
     # 한국 시간(UTC+9)을 고려
     now = datetime.utcnow() + timedelta(hours=9)
 
+    # 언제 실행되든 동일한 기준으로 주차 계산
+    # 일요일에 실행되었을 경우, 토요일 날짜로 고정
+    # 월요일에 실행되었을 경우, 일요일 -> 토요일로 변경
+    # GitHub Actions는 지정된 cron 시간에 정확히 실행되지 않고 약 10 ~ 30분 정도 지연되기 때문
+    if now.weekday() == 6:        # 현재가 일요일이면, 토요일 날짜로 계산
+        now = now - timedelta(days=1)
+    elif now.weekday() == 0:        # 현재가 월요일이면, 이틀 전(토요일)로 계산
+        now = now - timedelta(days=2)
+        
     current_week = calculate_week(now.year, now.month, now.day)
     last_week = now - timedelta(days=7)
     previous_week = calculate_week(last_week.year, last_week.month, last_week.day)
