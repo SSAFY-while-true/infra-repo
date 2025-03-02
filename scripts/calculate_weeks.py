@@ -10,6 +10,9 @@ def calculate_week(year, month, day):
     monday = date - timedelta(days=date.weekday())
     week_number = ((monday - first_day_of_month).days // 7) + 1
 
+    if week_number == 0:
+        week_number = 1
+
     return f"{date.strftime('%Y%m')}_{week_number}"
 
 def get_previous_and_current_week():
