@@ -2,11 +2,12 @@ name: Weekly Study
 
 on:
   schedule:
-    # 매주 토요일 22시 (KST) → UTC 13시
+    # 매주 토요일 22시 (KST) → UTC 13시 (리마인더)
     - cron: '0 13 * * 6'
-    # 매주 일요일 23시 50분 (KST) → UTC 14시 50분
-    # git works의 딜레이 때문에 10분 당김 
+    # 매주 일요일 자정 (KST) → UTC 15시 (제출 체크)
     - cron: '0 15 * * 0'
+    # 매주 수요일 14시 (KST) → UTC 5시 (노션 문제 출제 리마인더)
+    - cron: '0 5 * * 3'
   workflow_dispatch:
 
 jobs:
@@ -15,34 +16,39 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.x'
 
       - name: Install dependencies
         run: pip install requests PyGithub
 
-      # 토요일 22시: 리마인드
+      # 토요일 22시: 리마인더
       - name: Send Reminder
-        if: >
-          github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'schedule' && github.event.schedule == '0 13 * * 6')
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && contains(github.event.schedule, '0 13 * * 6'))
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           MATTERMOST_WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
         run: python scripts/reminder.py
 
-      # 일요일 0시: 제출 체크
+      # 일요일 자정: 제출 체크
       - name: Check Submissions
-        if: >
-          github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'schedule' && github.event.schedule == '0 15 * * 0')
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && contains(github.event.schedule, '0 15 * * 0'))
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           MATTERMOST_WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
         run: python scripts/check_submissions.py
+
+      # 수요일 14시: 노션 문제 출제 리마인더
+      - name: Send Problem Assignment Reminder
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && contains(github.event.schedule, '0 5 * * 3'))
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          MATTERMOST_WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
+        run: python scripts/notion_reminder.py
