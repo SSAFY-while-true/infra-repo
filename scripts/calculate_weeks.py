@@ -2,31 +2,32 @@ from datetime import datetime, timedelta
 
 def calculate_week(target_date):
     """
-    2025년 7월 14일(월)을 기준으로 주차를 계산합니다.
-    일요일이 주의 마지막 날이며, 월요일이 새 주의 시작입니다.
-    연속성을 보장하여 중복 없는 고유한 폴더명을 생성합니다.
+    월요일 기준 주차 계산 (언제나 작동)
+    해당 주의 월요일이 속한 달을 기준으로 폴더명 생성
     
     예: 
-    - 2025년 7월 14일(월) ~ 7월 20일(일) → 202507_3
-    - 2025년 7월 21일(월) ~ 7월 27일(일) → 202507_4
-    - 2025년 7월 28일(월) ~ 8월 3일(일) → 202507_5 (월 경계를 넘어도 7월 기준)
+    - 2025년 7월 1일(화) → 월요일은 6월 30일 → 202506_5
+    - 2025년 7월 7일(월) → 202507_2
+    - 2025년 7월 14일(월) → 202507_3
+    - 2025년 8월 4일(월) → 202508_2
     """
     
-    # 스터디 시작 기준점: 2025년 7월 14일(월)
-    study_start = datetime(2025, 7, 14)  # 월요일
-    
-    # 기준점 이전이면 에러
-    if target_date < study_start:
-        raise ValueError(f"스터디 시작일({study_start.strftime('%Y-%m-%d')}) 이전입니다.")
-    
-    # 스터디 시작일로부터 몇 주 지났는지 계산
-    days_diff = (target_date - study_start).days
-    week_number = (days_diff // 7) + 3  # 7월 3주차부터 시작
-    
-    # 폴더명은 해당 주의 월요일 기준으로 결정
+    # 해당 주의 월요일 찾기
     monday_of_week = target_date - timedelta(days=target_date.weekday())
     
-    return f"{monday_of_week.strftime('%Y%m')}_{week_number}"
+    # 월요일이 속한 달의 1일
+    first_day_of_month = monday_of_week.replace(day=1)
+    
+    # 그 달의 첫 번째 월요일 찾기
+    first_monday_of_month = first_day_of_month
+    if first_day_of_month.weekday() != 0:  # 월요일이 아니면
+        days_to_monday = 7 - first_day_of_month.weekday()
+        first_monday_of_month = first_day_of_month + timedelta(days=days_to_monday)
+    
+    # 해당 월의 몇 번째 주인지 계산 (1부터 시작)
+    week_in_month = ((monday_of_week - first_monday_of_month).days // 7) + 1
+    
+    return f"{monday_of_week.strftime('%Y%m')}_{week_in_month}"
 
 def get_previous_and_current_week():
     """
@@ -50,58 +51,39 @@ def get_previous_and_current_week():
 def get_current_week_for_reminder():
     """
     리마인더용 주차 계산
-    토요일에는 일요일까지 포함된 현재 주차를 알려줌 (다음 주가 아님)
+    토요일에도 현재 주차 반환 (일요일까지 제출하세요 의미)
     """
     now = datetime.utcnow() + timedelta(hours=9)
-    
-    # 모든 요일에서 현재 주차 반환
-    # 토요일 리마인더는 "일요일까지 제출하세요"라는 의미이므로 현재 주차가 맞음
     return calculate_week(now)
 
 def get_week_for_notion_reminder():
     """
     노션 문제 출제 리마인더용 주차 계산 (수요일 실행)
-    수요일에 이번 주 문제를 출제하라고 알림
     """
     now = datetime.utcnow() + timedelta(hours=9)
     return calculate_week(now)
 
-# 테스트 함수들
+# 테스트 함수
 def test_week_calculation():
-    """주요 날짜들에 대한 테스트"""
-    test_dates = [
-        (datetime(2025, 7, 14), "202507_3"),  # 스터디 시작일 (월)
-        (datetime(2025, 7, 20), "202507_3"),  # 첫 주 일요일
-        (datetime(2025, 7, 21), "202507_4"),  # 둘째 주 월요일
-        (datetime(2025, 7, 27), "202507_4"),  # 둘째 주 일요일
-        (datetime(2025, 8, 3), "202507_5"),   # 월 경계 넘어가는 주 일요일
-        (datetime(2025, 8, 4), "202508_6"),   # 새 달 시작 주 월요일
+    """다양한 경계 상황 테스트"""
+    test_cases = [
+        "2025-07-01",  # 화요일 (월요일은 6월 30일)
+        "2025-07-07",  # 월요일 (7월 첫 월요일)
+        "2025-07-14", # 월요일 (7월 둘째 월요일)
+        "2025-08-03", # 일요일 (월요일은 7월 28일)
+        "2025-08-04", # 월요일 (8월 첫 월요일)
     ]
     
     print("=== 주차 계산 테스트 ===")
-    for date, expected in test_dates:
+    for date_str in test_cases:
+        date = datetime.strptime(date_str, "%Y-%m-%d")
         result = calculate_week(date)
-        status = "✅" if result == expected else "❌"
-        print(f"{date.strftime('%Y-%m-%d (%a)')}: {result} {status}")
-        
-def test_current_scenario():
-    """현재 시나리오 테스트"""
-    print("\n=== 현재 시나리오 테스트 ===")
-    
-    # 이번 주 시뮬레이션
-    test_dates = [
-        datetime(2025, 7, 3),   # 목요일 (오늘)
-        datetime(2025, 7, 5),   # 토요일 (리마인더)
-        datetime(2025, 7, 6),   # 일요일 (체크)
-    ]
-    
-    for date in test_dates:
-        week = calculate_week(date)
-        print(f"{date.strftime('%Y-%m-%d (%a)')}: {week}")
+        monday = date - timedelta(days=date.weekday())
+        print(f"{date_str} ({date.strftime('%a')}) → 월요일: {monday.strftime('%Y-%m-%d')} → {result}")
 
 if __name__ == "__main__":
-    # 기존 함수 실행
     try:
+        # 현재 상황 출력
         p, c = get_previous_and_current_week()
         print("지난 주:", p)
         print("이번 주:", c)
@@ -112,10 +94,8 @@ if __name__ == "__main__":
         notion_week = get_week_for_notion_reminder()
         print("노션 리마인더 주차:", notion_week)
         
-        # 테스트 실행
+        print()
         test_week_calculation()
-        test_current_scenario()
         
     except Exception as e:
         print(f"Error: {e}")
-        print("스터디가 아직 시작하지 않았거나 날짜가 잘못되었습니다.")
