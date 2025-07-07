@@ -2,31 +2,31 @@ from datetime import datetime, timedelta
 
 def calculate_week(target_date):
     """
-    월요일 기준 주차 계산 (언제나 작동)
-    해당 주의 월요일이 속한 달을 기준으로 폴더명 생성
+    월요일~일요일을 하나의 주로 계산
+    폴더명은 해당 주의 월요일 날짜를 기준으로 결정
     
     예: 
-    - 2025년 7월 1일(화) → 월요일은 6월 30일 → 202506_5
-    - 2025년 7월 7일(월) → 202507_2
-    - 2025년 7월 14일(월) → 202507_3
-    - 2025년 8월 4일(월) → 202508_2
+    - 2025년 6월 30일(월) ~ 7월 6일(일) → 월요일 기준 → 202506_5
+    - 2025년 7월 7일(월) ~ 7월 13일(일) → 월요일 기준 → 202507_2
     """
     
     # 해당 주의 월요일 찾기
     monday_of_week = target_date - timedelta(days=target_date.weekday())
     
+    # *** 핵심: 월요일 날짜로 년월과 주차 결정 ***
     # 월요일이 속한 달의 1일
     first_day_of_month = monday_of_week.replace(day=1)
     
     # 그 달의 첫 번째 월요일 찾기
     first_monday_of_month = first_day_of_month
-    if first_day_of_month.weekday() != 0:  # 월요일이 아니면
-        days_to_monday = 7 - first_day_of_month.weekday()
-        first_monday_of_month = first_day_of_month + timedelta(days=days_to_monday)
+    while first_monday_of_month.weekday() != 0:  # 월요일이 될 때까지
+        first_monday_of_month += timedelta(days=1)
     
-    # 해당 월의 몇 번째 주인지 계산 (1부터 시작)
-    week_in_month = ((monday_of_week - first_monday_of_month).days // 7) + 1
+    # 해당 월의 몇 번째 주인지 계산
+    weeks_diff = (monday_of_week - first_monday_of_month).days // 7
+    week_in_month = weeks_diff + 1
     
+    # *** 월요일 기준 년월 사용 ***
     return f"{monday_of_week.strftime('%Y%m')}_{week_in_month}"
 
 def get_previous_and_current_week():
