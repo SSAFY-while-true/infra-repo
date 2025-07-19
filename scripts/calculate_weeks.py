@@ -31,18 +31,29 @@ def calculate_week(target_date):
 
 def get_previous_and_current_week():
     """
-    한국 시간 기준으로 지난주와 이번주 폴더명을 계산합니다.
+    제출 체크용: 현재가 월요일 새벽이면 전날(일요일) 기준으로 계산
+    GitHub Actions 딜레이를 고려한 로직
     """
     # UTC + 9시간 (한국 시간)
     now = datetime.utcnow() + timedelta(hours=9)
     
     print(f"DEBUG: Current KST time: {now}")
     
-    # 현재 주 계산
-    current_week = calculate_week(now)
+    # 만약 월요일 새벽 6시 이전이라면, 전날(일요일) 기준으로 계산
+    # GitHub Actions가 일요일 자정에 스케줄되었지만 딜레이로 월요일에 실행되는 경우를 고려
+    if now.weekday() == 0 and now.hour < 6:  # 월요일 오전 6시 이전
+        print("DEBUG: Detected Monday early morning - using previous day for calculation")
+        calculation_base = now - timedelta(days=1)  # 일요일로 되돌림
+    else:
+        calculation_base = now
+    
+    print(f"DEBUG: Calculation base time: {calculation_base}")
+    
+    # 현재 주 계산 (실제로는 방금 끝난 주)
+    current_week = calculate_week(calculation_base)
     
     # 지난 주 계산 (7일 전)
-    last_week_date = now - timedelta(days=7)
+    last_week_date = calculation_base - timedelta(days=7)
     previous_week = calculate_week(last_week_date)
 
     print(f"DEBUG: Previous week: {previous_week}, Current week: {current_week}")
@@ -50,7 +61,7 @@ def get_previous_and_current_week():
 
 def get_current_week_for_reminder():
     """
-    리마인더용 주차 계산
+    리마인더용 주차 계산 (토요일 저녁)
     토요일에도 현재 주차 반환 (일요일까지 제출하세요 의미)
     """
     now = datetime.utcnow() + timedelta(hours=9)
@@ -63,23 +74,47 @@ def get_week_for_notion_reminder():
     now = datetime.utcnow() + timedelta(hours=9)
     return calculate_week(now)
 
+def get_week_for_submission_check():
+    """
+    제출 체크 전용 함수: 방금 끝난 주차를 반환
+    일요일 자정에 실행되지만 GitHub Actions 딜레이를 고려
+    """
+    now = datetime.utcnow() + timedelta(hours=9)
+    
+    # 월요일 새벽이면 전날(일요일) 기준으로 계산
+    if now.weekday() == 0 and now.hour < 6:
+        calculation_base = now - timedelta(days=1)
+        print(f"DEBUG: Submission check - using Sunday base: {calculation_base}")
+    else:
+        calculation_base = now
+        print(f"DEBUG: Submission check - using current time: {calculation_base}")
+    
+    return calculate_week(calculation_base)
+
 # 테스트 함수
 def test_week_calculation():
     """다양한 경계 상황 테스트"""
     test_cases = [
-        "2025-07-01",  # 화요일 (월요일은 6월 30일)
-        "2025-07-07",  # 월요일 (7월 첫 월요일)
-        "2025-07-14", # 월요일 (7월 둘째 월요일)
-        "2025-08-03", # 일요일 (월요일은 7월 28일)
-        "2025-08-04", # 월요일 (8월 첫 월요일)
+        "2025-07-14 00:15",  # 월요일 새벽 (GitHub Actions 딜레이 시나리오)
+        "2025-07-13 23:59",  # 일요일 자정 직전
+        "2025-07-12 22:00",  # 토요일 밤 (리마인더)
+        "2025-07-09 14:00",  # 수요일 오후 (노션 리마인더)
+        "2025-07-07 09:00",  # 월요일 오전 (일반 시간)
     ]
     
     print("=== 주차 계산 테스트 ===")
     for date_str in test_cases:
-        date = datetime.strptime(date_str, "%Y-%m-%d")
+        date = datetime.strptime(date_str, "%Y-%m-%d %H:%M")
         result = calculate_week(date)
         monday = date - timedelta(days=date.weekday())
-        print(f"{date_str} ({date.strftime('%a')}) → 월요일: {monday.strftime('%Y-%m-%d')} → {result}")
+        
+        # 제출 체크 시뮬레이션
+        if date.weekday() == 0 and date.hour < 6:  # 월요일 새벽
+            adjusted_date = date - timedelta(days=1)
+            submission_check_result = calculate_week(adjusted_date)
+            print(f"{date_str} → 일반: {result} / 제출체크: {submission_check_result} (조정됨)")
+        else:
+            print(f"{date_str} → {result}")
 
 if __name__ == "__main__":
     try:
@@ -93,6 +128,9 @@ if __name__ == "__main__":
         
         notion_week = get_week_for_notion_reminder()
         print("노션 리마인더 주차:", notion_week)
+        
+        submission_week = get_week_for_submission_check()
+        print("제출 체크 주차:", submission_week)
         
         print()
         test_week_calculation()
