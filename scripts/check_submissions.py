@@ -4,7 +4,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from github import Github
-from calculate_weeks import get_previous_and_current_week
+from calculate_weeks import get_week_for_submission_check
 
 ORG_NAME = "SSAFY-while-true"
 
@@ -17,16 +17,19 @@ def main():
         print("Error: Missing GITHUB_TOKEN")
         return
 
-    # 지난주, 이번주 폴더 계산
-    prev_week, curr_week = get_previous_and_current_week()
+    # 방금 끝난 주차 계산 (제출 체크 대상)
+    target_week = get_week_for_submission_check()
+    print(f"DEBUG: Target week for submission check: {target_week}")
 
     # GitHub API
     gh = Github(GITHUB_TOKEN)
     org = gh.get_organization(ORG_NAME)
 
     report_lines = []
-    report_lines.append("## Weekly Submissions Check")
-    report_lines.append(f"- 지난 주 폴더: `{prev_week}`, 이번 주 폴더: `{curr_week}`\n")
+    report_lines.append("## 📊 Weekly Submissions Check")
+    report_lines.append(f"**검사 대상 주차**: `{target_week}`\n")
+
+    submission_results = []
 
     # 리포지토리 검사
     for repo in org.get_repos():
@@ -34,16 +37,28 @@ def main():
         if repo.name.startswith(".") or "infra" in repo.name.lower():
             continue
 
-        prev_status = check_folder_and_files(repo, prev_week)
-        curr_status = check_folder_and_files(repo, curr_week)
+        status = check_folder_and_files(repo, target_week)
+        submission_results.append((repo.name, status))
+        
+        # 상태에 따라 이모지 추가
+        emoji = "✅" if status == "O" else "❌"
+        report_lines.append(f"{emoji} **{repo.name}**: {status}")
 
-        report_lines.append(
-            f"**{repo.name}**: 지난주 {prev_status} / 이번주 {curr_status}"
-        )
+    # 통계 추가
+    total_repos = len(submission_results)
+    submitted_count = len([r for r in submission_results if r[1] == "O"])
+    missing_count = total_repos - submitted_count
+    
+    report_lines.insert(2, f"**제출 현황**: {submitted_count}/{total_repos} ({missing_count}명 미제출)\n")
 
     final_message = "\n".join(report_lines)
-    final_message += "\n\n이번 주도 모두 수고 많으셨습니다!🔥\n"
-    final_message += "**X**로 표시된 분들은 내일 커피…☕\n약속이죠?😆"
+    
+    if missing_count > 0:
+        final_message += f"\n\n☕ **미제출자 {missing_count}명** - 내일 커피 한 잔씩이에요! 😄"
+    else:
+        final_message += "\n\n🎉 **전원 제출 완료!** 모두 고생하셨습니다! 🔥"
+    
+    final_message += f"\n\n📅 다음 주 새로운 문제도 화이팅! 💪"
 
     # 웹훅 전송
     if DISCORD_WEBHOOK_URL:
@@ -60,18 +75,29 @@ def check_folder_and_files(repo, folder_name):
     """
     try:
         contents = repo.get_contents(folder_name)
-    except:
+        print(f"DEBUG: Found folder {folder_name} in {repo.name}")
+    except Exception as e:
+        print(f"DEBUG: Folder {folder_name} not found in {repo.name}: {e}")
         return "X"
 
+    valid_extensions = (".py", ".cpp", ".java", ".c", ".js", ".ts")
+    
     for item in contents:
         if item.type == "file":
-            # 확장자 검사
-            if item.name.lower().endswith((".py", ".cpp", ".java")):
+            print(f"DEBUG: Checking file {item.name} (size: {item.size}) in {repo.name}")
+            
+            # 확장자 검사 및 파일 크기 검사
+            if item.name.lower().endswith(valid_extensions):
                 if item.size > 0:  # 파일 크기가 0이 아닌 경우
+                    print(f"DEBUG: Valid submission found: {item.name} in {repo.name}")
                     return "O"
-            elif not item.name.lower().endswith(".md"):
+            elif not item.name.lower().endswith((".md", ".txt", ".gitkeep")):
+                # README, 메모 파일이 아닌 다른 파일도 제출로 인정
                 if item.size > 0:
+                    print(f"DEBUG: Valid submission found: {item.name} in {repo.name}")
                     return "O"
+    
+    print(f"DEBUG: No valid submissions found in {folder_name} for {repo.name}")
     return "X"
 
 def send_to_discord(webhook_url, message):
